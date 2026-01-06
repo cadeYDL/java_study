@@ -1,4 +1,4 @@
-package tech.cornjob;
+package toy.cornjob;
 
 public class Main {
 

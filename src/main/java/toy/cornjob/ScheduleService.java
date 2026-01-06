@@ -1,10 +1,9 @@
-package tech.cornjob;
+package toy.cornjob;
 
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.locks.LockSupport;
 
 public class ScheduleService {

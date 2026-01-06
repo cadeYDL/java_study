@@ -1,4 +1,4 @@
-package tech.cornjob;
+package toy.cornjob;
 
 class Job implements Comparable<Job>{
     private final String jobName;

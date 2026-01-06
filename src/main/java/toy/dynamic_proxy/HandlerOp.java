@@ -1,17 +1,15 @@
-package tech.dynamic_proxy;
+package toy.dynamic_proxy;
 
-import java.lang.reflect.Field;
-
-public interface  HandlerOp<T> {
+public interface  HandlerOp {
     String getBody(String name);
-    T getInterface();
+    Class getInterface();
 
-    default Object[] getProxys(){
-        return new Object[0];
+    default Object getProxy(){
+        return null;
     }
 }
 
-class HandlerTest1 implements HandlerOp<MyInterface> {
+class HandlerTest1 implements HandlerOp {
     @Override
     public String getBody(String name) {
 
@@ -19,33 +17,33 @@ class HandlerTest1 implements HandlerOp<MyInterface> {
     }
 
     @Override
-    public MyInterface getInterface() {
-        return new test1();
+    public Class getInterface() {
+        return MyInterface.class;
     }
 }
 
-class HandlerTest2 implements HandlerOp<MyInterface2> {
+class HandlerTest2 implements HandlerOp {
     @Override
     public String getBody(String name) {
         return "return arg0+arg1;";
     }
 
     @Override
-    public MyInterface2 getInterface() {
-        return new add();
+    public Class getInterface() {
+        return MyInterface2.class;
     }
 }
 
-class HandlerTest3 implements HandlerOp<MyInterface> {
+class HandlerTest3 implements HandlerOp {
     MyInterface inner;
     HandlerTest3(MyInterface inner) {
         this.inner = inner;
     }
-    String name="inner0";
+    String name="inner";
 
     @Override
-    public Object[] getProxys() {
-        return new Object[]{this.inner};
+    public Object getProxy() {
+        return this.inner;
     }
 
     @Override
@@ -56,7 +54,7 @@ class HandlerTest3 implements HandlerOp<MyInterface> {
     }
 
     @Override
-    public MyInterface getInterface() {
-        return new test1();
+    public Class getInterface() {
+        return MyInterface.class;
     }
 }

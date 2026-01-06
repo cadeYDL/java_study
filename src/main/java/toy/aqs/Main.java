@@ -1,4 +1,4 @@
-package tech.aqs;
+package toy.aqs;
 
 import java.util.ArrayList;
 

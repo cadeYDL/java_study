@@ -1,4 +1,4 @@
-package tech.dynamic_proxy;
+package toy.dynamic_proxy;
 
 public interface MyInterface2 {
     int add(int a, int b);

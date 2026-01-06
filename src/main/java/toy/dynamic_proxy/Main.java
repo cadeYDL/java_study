@@ -1,4 +1,4 @@
-package tech.dynamic_proxy;
+package toy.dynamic_proxy;
 
 import java.io.IOException;
 

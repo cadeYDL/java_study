@@ -1,4 +1,4 @@
-package tech.dynamic_proxy;
+package toy.dynamic_proxy;
 
 
 import javax.tools.JavaCompiler;

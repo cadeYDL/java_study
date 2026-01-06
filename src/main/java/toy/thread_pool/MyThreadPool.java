@@ -1,4 +1,4 @@
-package tech.threadPool;
+package toy.thread_pool;
 
 import java.util.ArrayList;
 import java.util.HashMap;
