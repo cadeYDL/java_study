@@ -26,6 +26,8 @@ dependencies {
     implementation 'org.slf4j:jul-to-slf4j:2.0.9'
 
     implementation 'ch.qos.logback:logback-classic:1.5.18'
+
+    implementation 'tech.medivh:shengsheng-classpy:1.1.0'
 }
 
 test {
