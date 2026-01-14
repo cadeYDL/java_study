@@ -36,6 +36,9 @@ dependencies {
     implementation 'ch.qos.logback:logback-classic:1.5.18'
 
     implementation 'tech.medivh:shengsheng-classpy:1.1.0'
+
+    implementation 'org.reflections:reflections:0.10.2'
+
 }
 
 test {
