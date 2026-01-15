@@ -72,7 +72,7 @@ public abstract class Expression {
         return midReviewNode(this);
     }
 
-    public String toString() {
+    public String getSufferExpression() {
         return postReviewNode(this);
     }
 
