@@ -7,27 +7,31 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Function;
 
 public class BufferPool {
     private final int total;
     private int free;
     private final Lock freeLock = new ReentrantLock();
-    private final Map<Integer,Deque<ByteBuffer>> slots = new HashMap<>();
+    Deque<Condition> waiters = new ArrayDeque<>();
+    private final Map<Integer, Slot> slots = new HashMap<>();
     private final int maxSlot;
 
-    private final Deque<Condition> waiters = new ArrayDeque<>();
-    private final Map<Integer,Lock> slotsLock = new HashMap<>();
-    private final Map<Integer,Deque<Condition>> slotWaiter = new HashMap<>();
+    private class Slot {
+        private int bufferSize;
+        Deque<Condition> waiters = new ArrayDeque<>();
+        Lock lock = new ReentrantLock();
+        Deque<ByteBuffer> cache = new ArrayDeque<>();
+        Slot(int size){
+            bufferSize = size;
+        }
+    }
 
     public BufferPool(int total,int maxSlot){
         this.total = total;
         this.free = total;
         this.maxSlot = get2Size(maxSlot);
         for (int i =1;i<=maxSlot;i<<=1){
-            slots.put(i,new ArrayDeque<>());
-            slotsLock.put(i,new ReentrantLock());
-            slotWaiter.put(i, new ArrayDeque<>());
+            slots.put(i,new Slot(i));
         }
     }
 
@@ -48,79 +52,74 @@ public class BufferPool {
         }
         if (size > maxSlot){
             freeUp(size);
-            return getNewBuffer(size,waiteTimeMS);
+            return getLargeBuffer(size,waiteTimeMS);
         }
+
+        return getNormalBuffer(size,waiteTimeMS);
+    }
+
+    private ByteBuffer getNormalBuffer(int size, long waiteTimeMS) throws Exception {
         size = get2Size(size);
-        Lock lock = slotsLock.get(size);
-        Deque<ByteBuffer> slot = slots.get(size);
-        Deque<Condition> slotWaters = slotWaiter.get(size);
-        Condition cond;
-        try{
-            lock.lock();
-            if (!slot.isEmpty()){
-                return slot.pop();
+        Slot slot = slots.get(size);
+        long deadLine = System.currentTimeMillis() + waiteTimeMS;
+        for(;;){
+            Condition cond = registerAsWaiter(slot);
+            try{
+                slot.lock.lock();
+                ByteBuffer buffer = waitAndRery(slot,cond,deadLine);
+                if(buffer!=null){
+                    return buffer;
+                }
+            }finally {
+                slot.waiters.remove(cond);
+                slot.lock.unlock();
             }
-            cond = lock.newCondition();
-        }finally {
-            lock.unlock();
+        }
+
+    }
+
+
+    private ByteBuffer waitAndRery(Slot slot, Condition cond, long deadline) throws Exception {
+        long remaining = deadline - System.currentTimeMillis();
+        if (remaining <= 0) {
+            throw new TimeoutException("超时");
+        }
+        ByteBuffer buffer = tryQuickAllocation(slot);
+        if(buffer!=null){
+            return buffer;
+        }
+        boolean woke = cond.await(remaining, TimeUnit.MILLISECONDS);
+        if (!woke) {
+            throw new TimeoutException("超时");
+        }
+
+        // 被唤醒后再次尝试
+        return tryQuickAllocation(slot);
+    }
+
+    private Condition registerAsWaiter(Slot slot) {
+        Condition cond = slot.lock.newCondition();
+        slot.waiters.addLast(cond);
+        return cond;
+    }
+
+    private ByteBuffer tryQuickAllocation(Slot slot) {
+        if (!slot.cache.isEmpty()){
+            return slot.cache.pop();
         }
         try {
             freeLock.lock();
-            freeUp(size);
-            if (size <= free) {
-                free -= size;
-                return ByteBuffer.allocate(size);
+            if (slot.bufferSize <= free) {
+                free -= slot.bufferSize;
+                return ByteBuffer.allocate(slot.bufferSize);
             }
         } finally {
             freeLock.unlock();
         }
-        try{
-            lock.lock();
-            slotWaters.addLast(cond);
-        }finally {
-            lock.unlock();
-        }
-        long start = System.currentTimeMillis();
-        long remainTime = waiteTimeMS;
-        for(;;) {
-            try{
-                lock.lock();
-                if (!slot.isEmpty()){
-                    slotWaters.remove(cond);
-                    return slot.pop();
-                }
-            }finally {
-                lock.unlock();
-            }
-            try {
-                freeLock.lock();
-                freeUp(size);
-                if (size <= free) {
-                    free -= size;
-                    slotWaters.remove(cond);
-                    return ByteBuffer.allocate(size);
-                }
-            } finally {
-                freeLock.unlock();
-            }
-            try{
-                lock.lock();
-                boolean wakeUp = cond.await(remainTime, TimeUnit.MILLISECONDS);
-                if(!wakeUp){
-                    slotWaters.remove(cond);
-                    throw new TimeoutException("超时！"+waiteTimeMS);
-                }
-                remainTime = remainTime + start - System.currentTimeMillis();
-            }finally {
-                lock.unlock();
-            }
-        }
+        return null;
     }
 
     private void freeUp(int size) {
-        if (size<=maxSlot){
-            return;
-        }
         try{
             freeLock.lock();
             HashSet<Integer> vistMap = new HashSet<>();
@@ -129,16 +128,16 @@ public class BufferPool {
                 int i = maxSlot;
                 for(;(i>needSize||vistMap.contains(i))&&i>1;i>>=1){}
                 int needCount = needSize/i;
-                Lock lock = slotsLock.get(i);
+                Slot slot = slots.get(i);
                 try{
-                    lock.lock();
+                    slot.lock.lock();
                     vistMap.add(i);
-                    for(int j=0;j<needCount&&!slots.get(i).isEmpty();j++){
-                        slots.get(i).pop();
+                    for(int j=0;j<needCount&&!slot.cache.isEmpty();j++){
+                        slot.cache.pop();
                         free += i;
                     }
                 }finally {
-                    lock.unlock();
+                    slot.lock.unlock();
                 }
             }
         }finally {
@@ -147,7 +146,7 @@ public class BufferPool {
 
     }
 
-    private ByteBuffer getNewBuffer(int size, long waiteTimeMS) throws Exception {
+    private ByteBuffer getLargeBuffer(int size, long waiteTimeMS) throws Exception {
         Condition cond;
         freeLock.lock();
         try {
@@ -163,36 +162,26 @@ public class BufferPool {
 
 
         long remainTime = waiteTimeMS;
+        long start = System.currentTimeMillis();
+        freeLock.lock();
         try {
             while (true) {
-                long start = System.currentTimeMillis();
-                freeLock.lock();
-                try {
-                    boolean wakeup = cond.await(remainTime, TimeUnit.MILLISECONDS);
-                    if (!wakeup) {
-                        throw new TimeoutException("超时了");
-                    }
-                    freeUp(size);
-                    if (size <= free) {
-                        free -= size;
-                        return ByteBuffer.allocate(size);
-                    }
-                } finally {
-                    freeLock.unlock();
+                freeUp(size);
+                if (size <= free) {
+                    free -= size;
+                    return ByteBuffer.allocate(size);
                 }
-                remainTime = remainTime + start - System.currentTimeMillis();
-                if (remainTime <= 0) {
+                boolean wakeup = cond.await(remainTime, TimeUnit.MILLISECONDS);
+                if (!wakeup) {
                     throw new TimeoutException("超时了");
                 }
+                remainTime = remainTime + start - System.currentTimeMillis();
             }
         } finally {
-            freeLock.lock();
-            try {
-                waiters.remove(cond);
-            } finally {
-                freeLock.unlock();
-            }
+            waiters.remove(cond);
+            freeLock.unlock();
         }
+
     }
 
     public void deallocate(ByteBuffer buffer) {
@@ -207,18 +196,18 @@ public class BufferPool {
         }
 
 
-        Lock lock = slotsLock.get(buffer.capacity());
+        Slot slot = slots.get(buffer.capacity());
 
         try {
-            lock.lock();
+            slot.lock.lock();
             buffer.clear();
-            slots.get(buffer.capacity()).addLast(buffer);
-            Deque<Condition> slotWaiters = slotWaiter.get(buffer.capacity());
+            slot.cache.addLast(buffer);
+            Deque<Condition> slotWaiters = slot.waiters;
             if(!slotWaiters.isEmpty()){
                 slotWaiters.peek().signal();
             }
         } finally {
-            lock.unlock();
+            slot.lock.unlock();
         }
     }
 }

@@ -44,7 +44,7 @@ class BufferPoolTest {
 
         Thread.sleep(1000);
 
-//        assertFalse(future.isDone());
+        assertFalse(future.isDone());
 
         pool.deallocate(b1);
         ByteBuffer b3 = future.get(100, TimeUnit.MILLISECONDS);
