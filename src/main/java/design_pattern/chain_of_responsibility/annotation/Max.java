@@ -1,4 +1,4 @@
-package design_pattern.chain.annotation;
+package design_pattern.chain_of_responsibility.annotation;
 
 
 import java.lang.annotation.ElementType;

@@ -1,4 +1,4 @@
-package design_pattern.chain.validation;
+package design_pattern.chain_of_responsibility.validation;
 
 public class LengthValidatorHandler implements ValidatorHandler {
     private int value;

@@ -1,6 +1,6 @@
-package design_pattern.chain.validation;
+package design_pattern.chain_of_responsibility.validation;
 
-import design_pattern.chain.excepation.ValidatorException;
+import design_pattern.chain_of_responsibility.excepation.ValidatorException;
 
 import java.util.ArrayList;
 import java.util.List;

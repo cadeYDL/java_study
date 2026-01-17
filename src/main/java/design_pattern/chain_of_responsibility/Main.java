@@ -1,8 +1,7 @@
-package design_pattern.chain;
+package design_pattern.chain_of_responsibility;
 
 
-import design_pattern.chain.excepation.ValidatorException;
-import design_pattern.chain.validation.Validator;
+import design_pattern.chain_of_responsibility.validation.Validator;
 
 public class Main {
     public static void main(String[] args) throws Exception {

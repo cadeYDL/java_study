@@ -1,9 +1,8 @@
-package design_pattern.chain.validation;
+package design_pattern.chain_of_responsibility.validation;
 
-import design_pattern.chain.annotation.Length;
-import design_pattern.chain.annotation.Max;
-import design_pattern.chain.annotation.Min;
-import design_pattern.chain.excepation.ValidatorException;
+import design_pattern.chain_of_responsibility.annotation.Length;
+import design_pattern.chain_of_responsibility.annotation.Max;
+import design_pattern.chain_of_responsibility.annotation.Min;
 
 import java.lang.reflect.Field;
 import java.util.ArrayList;

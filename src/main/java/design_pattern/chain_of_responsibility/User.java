@@ -1,8 +1,8 @@
-package design_pattern.chain;
+package design_pattern.chain_of_responsibility;
 
-import design_pattern.chain.annotation.Length;
-import design_pattern.chain.annotation.Max;
-import design_pattern.chain.annotation.Min;
+import design_pattern.chain_of_responsibility.annotation.Length;
+import design_pattern.chain_of_responsibility.annotation.Max;
+import design_pattern.chain_of_responsibility.annotation.Min;
 
 public class User {
     @Length(3)

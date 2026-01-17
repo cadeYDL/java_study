@@ -1,4 +1,4 @@
-package design_pattern.chain.validation;
+package design_pattern.chain_of_responsibility.validation;
 
 public class MaxValidatorHandler implements ValidatorHandler {
     private int value;
