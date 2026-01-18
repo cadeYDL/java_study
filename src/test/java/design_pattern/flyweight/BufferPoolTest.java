@@ -52,4 +52,36 @@ class BufferPoolTest {
 
         executor.shutdownNow();
     }
+
+
+    @Test
+    void testMultiThreadedAllocationWithHugeBlocking() throws Exception {
+        BufferPool pool = new BufferPool(1024, 256);
+
+        ByteBuffer b1 = pool.allocate(128, 1000);
+        ByteBuffer b11 = pool.allocate(128, 1000);
+        ByteBuffer b2 = pool.allocate(256, 1000);
+        ByteBuffer b3 = pool.allocate(512, 1000);
+
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        Future<ByteBuffer> future = executor.submit(() -> pool.allocate(256, 3000));
+
+        Thread.sleep(1000);
+
+        assertFalse(future.isDone());
+
+        pool.deallocate(b2);
+        ByteBuffer b4 = future.get(100, TimeUnit.MILLISECONDS);
+        assertNotNull(b4);
+
+        future = executor.submit(() -> pool.allocate(256, 3000));
+
+        Thread.sleep(1000);
+        assertFalse(future.isDone());
+        pool.deallocate(b1);
+        pool.deallocate(b11);
+
+
+        executor.shutdownNow();
+    }
 }
