@@ -4,6 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -13,6 +14,7 @@ public class BufferPool {
     private int free;
     private final Lock freeLock = new ReentrantLock();
     Deque<Condition> waiters = new ArrayDeque<>();
+    private final AtomicInteger waiterCount = new AtomicInteger(0);
     private final Map<Integer, Slot> slots = new HashMap<>();
     private final int maxSlot;
 
@@ -72,6 +74,7 @@ public class BufferPool {
                 }
             }finally {
                 slot.waiters.remove(cond);
+                waiterCount.decrementAndGet();
                 slot.lock.unlock();
             }
         }
@@ -100,6 +103,7 @@ public class BufferPool {
     private Condition registerAsWaiter(Slot slot) {
         Condition cond = slot.lock.newCondition();
         slot.waiters.addLast(cond);
+        waiterCount.incrementAndGet();
         return cond;
     }
 
@@ -156,6 +160,8 @@ public class BufferPool {
                 return ByteBuffer.allocate(size);
             }
             cond = freeLock.newCondition();
+            waiters.addLast(cond);
+            waiterCount.incrementAndGet();
         } finally {
             freeLock.unlock();
         }
@@ -179,35 +185,94 @@ public class BufferPool {
             }
         } finally {
             waiters.remove(cond);
+            waiterCount.decrementAndGet();
             freeLock.unlock();
         }
 
     }
 
     public void deallocate(ByteBuffer buffer) {
-        if (buffer.capacity() > maxSlot || !slots.containsKey(buffer.capacity())) {
+        if (slots.containsKey(buffer.capacity())) {
+            Slot slot = slots.get(buffer.capacity());
             try {
-                freeLock.lock();
-                free += buffer.capacity();
-                return;
+                slot.lock.lock();
+                if(!slot.waiters.isEmpty()||waiterCount.get()==0){
+                    buffer.clear();
+                    slot.cache.addLast(buffer);
+                    Deque<Condition> slotWaiters = slot.waiters;
+                    if(!slotWaiters.isEmpty()){
+                        slotWaiters.peek().signal();
+                    }
+                    return;
+                }
             } finally {
-                freeLock.unlock();
+                slot.lock.unlock();
             }
         }
 
-
-        Slot slot = slots.get(buffer.capacity());
-
-        try {
-            slot.lock.lock();
-            buffer.clear();
-            slot.cache.addLast(buffer);
-            Deque<Condition> slotWaiters = slot.waiters;
-            if(!slotWaiters.isEmpty()){
-                slotWaiters.peek().signal();
-            }
-        } finally {
-            slot.lock.unlock();
+        try{
+            freeLock.lock();
+            free+=buffer.capacity();
+            signalOneWaiter();
+        }finally {
+            freeLock.unlock();
         }
     }
+
+    private boolean signalOne(int size){
+        if(!slots.containsKey(size)){
+            return false;
+        }
+        Slot slot = slots.get(size);
+        try{
+            slot.lock.lock();
+            if(!slot.waiters.isEmpty()){
+                slot.waiters.peek().signal();
+                return true;
+            }
+        }finally {
+            slot.lock.unlock();
+        }
+        return false;
+    }
+
+    private void signalOneWaiter() {
+        if(!waiters.isEmpty()){
+             waiters.peek().signal();
+        }
+        int canSignal =get2Size(free);
+        if (canSignal>free){
+            canSignal>>=1;
+        }
+        if(slots.containsKey(canSignal)){
+            if (signalOne(canSignal)){
+                return;
+            }
+        }
+        int left =0,right = canSignal;
+        if(canSignal>=maxSlot){
+             left = maxSlot>>1;
+             right = canSignal;
+        }
+        while (left>=1 || right<=maxSlot){
+            if(right<=maxSlot){
+                if (signalOne(right)){
+                    return;
+                }
+                right <<=1;
+            }
+            if(left>=1){
+                if (signalOne(left)){
+                    return;
+                }
+                if (left==1){
+                    left=0;
+                }else{
+                    left>>=1;
+                }
+            }
+        }
+    }
+
+
 }
