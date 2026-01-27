@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.7.18</version>
+        <version>3.4.1</version>
         <relativePath/> <!-- 从仓库查找，不继承本地 -->
     </parent>
 
@@ -18,7 +18,7 @@
 
     <properties>
         <!-- 2. 使用父POM中预定义的属性，而非硬编码编译器版本 -->
-        <java.version>17</java.version>
+        <java.version>23</java.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
