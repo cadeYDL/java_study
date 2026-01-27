@@ -7,4 +7,9 @@ public class VoidRedisKeyValueAdapter extends RedisKeyValueAdapter {
     public void afterPropertiesSet() {
 
     }
+
+    @Override
+    public void start() {
+
+    }
 }
